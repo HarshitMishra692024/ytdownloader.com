@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Downloader</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+
+  <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md">
+
+    <h1 class="text-2xl font-bold text-center mb-6">YouTube Downloader</h1>
+
+    <form id="downloadForm" class="space-y-4">
+      <input
+        type="text"
+        name="url"
+        placeholder="Paste YouTube URL..."
+        required
+        class="w-full p-3 rounded-xl bg-gray-700 outline-none"
+      />
+
+      <select name="quality" class="w-full p-3 rounded-xl bg-gray-700">
+        <option value="best">Best Quality</option>
+        <option value="720">720p</option>
+        <option value="480">480p</option>
+        <option value="audio">MP3 Audio</option>
+      </select>
+
+      <button
+        type="submit"
+        class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded-xl font-semibold transition"
+      >
+        Download
+      </button>
+    </form>
+
+    <!-- Thumbnail -->
+    <img id="thumb" class="hidden mt-4 rounded-xl" />
+
+    <!-- Progress Bar -->
+    <div class="mt-6 hidden" id="progressContainer">
+      <div class="w-full bg-gray-700 rounded-full h-4">
+        <div
+          id="progressBar"
+          class="bg-green-500 h-4 rounded-full transition-all duration-300"
+          style="width: 0%"
+        ></div>
+      </div>
+      <p class="text-center mt-2" id="progressText">0%</p>
+      <p class="text-center text-sm text-gray-400" id="speedEta"></p>
+    </div>
+
+    <!-- Download Buttons -->
+    <a id="downloadBtn" href="/file" class="hidden mt-6 block text-center bg-green-600 hover:bg-green-700 p-3 rounded-xl font-semibold">
+      Download File
+    </a>
+
+    <a id="zipBtn" href="/zip" class="hidden mt-2 block text-center bg-purple-600 hover:bg-purple-700 p-3 rounded-xl font-semibold">
+      Download All ZIP
+    </a>
+
+  </div>
+
+  <script>
+    // ✅ Pure WebSocket connection (no polling)
+    const socket = io({
+      transports: ["websocket"],
+      upgrade: false
+    });
+
+    const form = document.getElementById("downloadForm");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const speedEta = document.getElementById("speedEta");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const zipBtn = document.getElementById("zipBtn");
+    const thumb = document.getElementById("thumb");
+
+    function resetUI() {
+      progressBar.style.width = "0%";
+      progressText.innerText = "0%";
+      speedEta.innerText = "";
+      progressContainer.classList.add("hidden");
+      downloadBtn.classList.add("hidden");
+      zipBtn.classList.add("hidden");
+      thumb.classList.add("hidden");
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      resetUI();
+      progressContainer.classList.remove("hidden");
+
+      const formData = new FormData(form);
+      await fetch("/download", { method: "POST", body: formData });
+    });
+
+    // 📡 Real-time progress listener
+    socket.on("progress", (data) => {
+      if (data.percent !== undefined) {
+        progressBar.style.width = data.percent + "%";
+        progressText.innerText = data.percent + "% - " + data.status;
+      }
+
+      if (data.speed) {
+        speedEta.innerText = data.speed + " | ETA: " + data.eta + "s";
+      }
+
+      if (data.thumbnail) {
+        thumb.src = data.thumbnail;
+        thumb.classList.remove("hidden");
+      }
+
+      if (data.status === "completed") {
+        window.location.href = "/file";
+        downloadBtn.classList.remove("hidden");
+        zipBtn.classList.remove("hidden");
+      }
+
+      if (data.status && data.status.startsWith("error")) {
+        progressText.innerText = data.status;
+      }
+    });
+  </script>
+
+</body>
+</html>
